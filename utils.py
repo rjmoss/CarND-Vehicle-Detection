@@ -195,6 +195,22 @@ def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
     return imcopy
 
 
+def draw_labelled_bboxes(img, labels, color=(0, 0, 255), thick=6):
+    imcopy = np.copy(img)
+    for car_number in range(1, labels[1]+1):
+        # Find pixels with each car_number label value
+        nonzero = (labels[0] == car_number).nonzero()
+
+        nonzeroy = np.array(nonzero[0])
+        nonzerox = np.array(nonzero[1])
+        # Define a bounding box based on min/max x and y
+        bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
+
+        cv2.rectangle(imcopy, bbox[0], bbox[1], color, thick)
+    # Return the image
+    return imcopy
+
+
 # Define a single function that can extract features using hog sub-sampling and make predictions
 def find_cars(img, y_start_stop, scale, svc, X_scaler, orient, pix_per_cell, cell_per_block,
               spatial_size, hist_bins, color_space, **kwargs):
@@ -263,3 +279,15 @@ def find_cars(img, y_start_stop, scale, svc, X_scaler, orient, pix_per_cell, cel
                                       (xbox_left + win_draw, ytop_draw + win_draw + y_start_stop[0])))
 
     return windows_found
+
+
+def add_heat(heatmap, bbox_list):
+    for box in bbox_list:
+        heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
+
+    return heatmap
+
+def apply_threshold(heatmap, threshold):
+    # Zero out pixels below the threshold
+    heatmap[heatmap <= threshold] = 0
+    return heatmap
