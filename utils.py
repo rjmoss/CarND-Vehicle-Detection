@@ -287,6 +287,15 @@ def add_heat(heatmap, bbox_list):
 
     return heatmap
 
+def add_extra_heat(heatmap, bbox_list):
+    # Give extra emphasis to boxes which overlap other boxes (helps get union of boxes rather than
+    # intersection)
+    for box in bbox_list:
+        if np.max(heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]]) > 1:
+            heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
+
+    return heatmap
+
 def apply_threshold(heatmap, threshold):
     # Zero out pixels below the threshold
     heatmap[heatmap <= threshold] = 0
