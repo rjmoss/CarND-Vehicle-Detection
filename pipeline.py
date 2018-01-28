@@ -19,7 +19,7 @@ from sklearn.preprocessing import StandardScaler
 from skimage.feature import hog
 from scipy.ndimage.measurements import label
 
-from utils import slide_window, extract_features_single, add_heat,                  draw_boxes, find_cars, read_img, draw_labelled_bboxes,                  add_extra_heat
+from utils import slide_window, extract_features_single, add_heat,                  draw_boxes, find_cars, read_img, draw_labelled_bboxes,                  add_extra_heat, search_windows
 
 from collections import deque
 from moviepy.editor import VideoFileClip
@@ -142,24 +142,13 @@ def visualise_windows(img, parameters):
         plt.imshow(img)
         plt.gca().add_patch(Polygon(window, linewidth=4,edgecolor='r',facecolor='r'))
         plt.gca().add_patch(Polygon(search_area, linewidth=4,edgecolor='b',facecolor='none'))
+        if SAVE:
+                fig = plt.gcf()
+                fig.savefig('output_images/search_window_'+ str(param['window_size'][0]) + '.jpg')
 
 
 # In[8]:
 
-
-def search_windows(img, windows, clf, scaler, config):
-    on_windows = []
-    for window in windows:
-        window_img = cv2.resize(img[window[0][1]:window[1][1], window[0][0]:window[1][0]], (64, 64))
-        
-        features = extract_features_single(window_img, **config)
-        test_features = scaler.transform(np.array(features).reshape(1, -1))
-        prediction = clf.predict(test_features)
-
-        if prediction == 1:
-            on_windows.append(window)
-
-    return on_windows
 
 # DEPRACATED - using HOG subsampling for efficiency
 if False:
@@ -244,30 +233,26 @@ def pipeline(img, clip):
     
     # Note - frame/clip will always store the unthresholded heatmap
     threshold_heatmap = np.copy(clip.heatmap)
-
-#     threshold = min(2*len(clip.frames, 6)) # So it works for single images or videos
-    threshold_heatmap[threshold_heatmap <= 3] = 0
-    heatmap_1 = np.copy(threshold_heatmap)
+#     threshold_heatmap = np.copy(clip.frames[-1].heatmap)
+    
+#     threshold_heatmap[threshold_heatmap <= 3] = 0
+#     heatmap_1 = np.copy(threshold_heatmap)
     threshold_heatmap[threshold_heatmap <= 4] = 0
-    heatmap_2 = np.copy(threshold_heatmap)
-    threshold_heatmap[threshold_heatmap <= 5] = 0
-    heatmap_3 = np.copy(threshold_heatmap)
+#     heatmap_2 = np.copy(threshold_heatmap)
+#     threshold_heatmap[threshold_heatmap <= 5] = 0
+#     heatmap_3 = np.copy(threshold_heatmap)
 
-    # TODO - could be cool to overlay the heatmap on the image, or have something
-    # which shows that the heat is about to go blue. Could do the bounding box
-    # color based on the heatmap number (so higher heatmaps are emphasised)
-    
-    
+
     # 3. Label the heatmap
     labelled_array, num_features = label(threshold_heatmap)
-    
+
     # 4. Draw the bounded boxes
     output = np.copy(img)
-#     output = draw_labelled_bboxes(img, (labelled_array, num_features), color=(0, 0, 255), thick=6)
+    output = draw_labelled_bboxes(img, (labelled_array, num_features), color=(0, 0, 255), thick=6)
 #     output = draw_labelled_bboxes(img, label(heatmap_1), color=(255, 0, 0), thick=6)
 #     output = draw_labelled_bboxes(output, label(heatmap_2), color=(0, 255, 0), thick=4)
-    output = draw_labelled_bboxes(output, label(heatmap_3), color=(0, 0, 255), thick=2)
-    
+#     output = draw_labelled_bboxes(output, label(heatmap_3), color=(0, 0, 255), thick=2)
+
     # -----
     if PLOT:
         images = [
@@ -294,7 +279,7 @@ def pipeline(img, clip):
 # In[11]:
 
 
-get_ipython().run_cell_magic('time', '', 'PLOT = True\nSAVE = True\noutput = pipeline(test_images[0], Clip())')
+get_ipython().run_cell_magic('time', '', 'PLOT = False\nSAVE = False\noutput = pipeline(test_images[0], Clip())')
 
 
 # In[12]:
@@ -302,9 +287,13 @@ get_ipython().run_cell_magic('time', '', 'PLOT = True\nSAVE = True\noutput = pip
 
 PLOT = False
 SAVE = False
-for im in test_images:
+for i, im in enumerate(test_images):
     plt.figure()
     plt.imshow(pipeline(im, Clip()))
+    
+    fig = plt.gcf()
+    fig.savefig('output_images/test_image_' + str(i+1) + '.jpg')
+SAVE = False
 
 
 # In[13]:
@@ -316,10 +305,9 @@ project_video = VideoFileClip("project_video.mp4")
 test_video = VideoFileClip("test_video.mp4")
     
 white_start = project_video.subclip(4,7)
-poor_white = project_video.subclip(20,25)
+poor_white = project_video.subclip(25,29)
 lost_white = project_video.subclip(28,30)
 lost_white2 = project_video.subclip(46,50)
-
 
 video = project_video
 
@@ -338,12 +326,4 @@ HTML("""
   <source src="{0}">
 </video>
 """.format(output_file))
-
-
-# In[16]:
-
-
-# PLOT = True
-# SAVE = False
-# output = pipeline(video.get_frame(1), Clip())
 

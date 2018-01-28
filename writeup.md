@@ -137,7 +137,7 @@ Here are some examples of the performace of the pipeline on the test images:
 ### Video Implementation
 
 #### Final video
-Here's a [link to my video result](./output_images/video_out.mp4)
+Here's a [link to my video result](./output_images/video_result.mp4)
 
 #### Heatmap
 The heatmap for each individual frame is calculated as for images above, however there is one extra step before applying the threshold to the heatmap: the pre-threshold heatmap is made as the average heatmap over the previous 8 frames, this helps to reduce false positives as we assume an actual car doesn't move much between frames. Therefore if there is a window in just one of the last 8 frames it is likely to be a one off false positive, and the averaging before thresholding will remove it from the final heatmap.

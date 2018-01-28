@@ -187,6 +187,21 @@ def slide_window(img, x_start_stop=(None, None), y_start_stop=(None, None),
     return window_list
 
 
+def search_windows(img, windows, clf, scaler, config):
+    on_windows = []
+    for window in windows:
+        window_img = cv2.resize(img[window[0][1]:window[1][1], window[0][0]:window[1][0]], (64, 64))
+
+        features = extract_features_single(window_img, **config)
+        test_features = scaler.transform(np.array(features).reshape(1, -1))
+        prediction = clf.predict(test_features)
+
+        if prediction == 1:
+            on_windows.append(window)
+
+    return on_windows
+
+
 def draw_boxes(img, bboxes, color=(0, 0, 255), thick=6):
     imcopy = np.copy(img)
     for bbox in bboxes:
