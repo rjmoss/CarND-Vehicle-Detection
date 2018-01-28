@@ -7,6 +7,7 @@
 # Imports
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
 get_ipython().run_line_magic('matplotlib', 'inline')
 import numpy as np
 import cv2
@@ -56,7 +57,7 @@ config = pickle.load(open('feature_config.pkl', 'rb'))
 X_scaler = pickle.load(open('x_scaler.pkl', 'rb'))
 
 
-# In[17]:
+# In[6]:
 
 
 x_start_stop = [None, None]
@@ -72,13 +73,78 @@ window_sizes = [
     (200, 200),
 ]
 
-cells_per_window = int(xy_window[0] / config['pix_per_cell'])
-cells_per_step = int((1 - xy_overlap[0]) * cells_per_window)
+
+parameters = [
+    {
+        'window_size': (64, 64),
+        'y_start_stop': [360, 500],
+        'xy_overlap': (0.75, 0.75)
+    },
+    {
+        'window_size': (96, 96),
+        'y_start_stop': [360, 560],
+        'xy_overlap': (0.75, 0.75)
+    },
+    {
+        'window_size': (120, 120),
+        'y_start_stop': [340, 600],
+        'xy_overlap': (0.75, 0.75)
+    },
+    {
+        'window_size': (160, 160),
+        'y_start_stop': [400, 720],
+        'xy_overlap': (0.75, 0.75)
+    },
+    {
+        'window_size': (200, 200),
+        'y_start_stop': [400, 720],
+        'xy_overlap': (0.75, 0.75)
+    },
+    {
+        'window_size': (260, 260),
+        'y_start_stop': [360, 720],
+        'xy_overlap': (0.75, 0.75)
+    }
+]
+
+for param in parameters:
+    param['x_start_stop'] = [None, None]
+    param['scale'] = param['window_size'][0]/xy_window[0]
+
+
+# cells_per_window = int(xy_window[0] / config['pix_per_cell'])
+# cells_per_step = int((1 - xy_overlap[0]) * cells_per_window)
 
 scales = [ws[0]/xy_window[0] for ws in window_sizes]
 
 
-# In[18]:
+# In[7]:
+
+
+def visualise_windows(img, parameters):
+
+    for param in parameters:
+        search_area = np.float32([
+            [0, param['y_start_stop'][0]], # top-left
+            [img.shape[1], param['y_start_stop'][0]], # top-right
+            [img.shape[1], param['y_start_stop'][1]], # bottom-right
+            [0, param['y_start_stop'][1]] # bottom-left
+        ])
+        
+        window = np.float32([
+            [0, param['y_start_stop'][0]], # top-left
+            [param['window_size'][0], param['y_start_stop'][0]], # top-right
+            [param['window_size'][0], param['y_start_stop'][0] + param['window_size'][1]], # bottom-right
+            [0, param['y_start_stop'][0] + param['window_size'][1]] # bottom-left
+        ])
+        
+        plt.figure()
+        plt.imshow(img)
+        plt.gca().add_patch(Polygon(window, linewidth=4,edgecolor='r',facecolor='r'))
+        plt.gca().add_patch(Polygon(search_area, linewidth=4,edgecolor='b',facecolor='none'))
+
+
+# In[8]:
 
 
 def search_windows(img, windows, clf, scaler, config):
@@ -114,7 +180,7 @@ if False:
     plt.imshow(window_img)
 
 
-# In[19]:
+# In[9]:
 
 
 class Frame():
@@ -123,18 +189,18 @@ class Frame():
 
 class Clip():
     def __init__(self):        
-        self.frames = deque([], maxlen=4)
+        self.frames = deque([], maxlen=8)
 
     @property
     def heatmap(self):
-        # Heatmap is a sum of the previous 4 frames
+        # Heatmap is a n average of the previous X frames
         if len(self.frames) == 1:
             return self.frames[0].heatmap
         stacked = np.stack([f.heatmap for f in self.frames])
         return np.mean(stacked, axis=0)
 
 
-# In[22]:
+# In[10]:
 
 
 def pipeline(img, clip):
@@ -147,34 +213,60 @@ def pipeline(img, clip):
     """
     frame = Frame()
     clip.frames.append(frame)
+    heatmap = np.zeros_like(img[:,:,0]).astype(np.float)
+    
     
     # 1. Identify "hot" windows
     hot_windows = []
-    for scale in scales:
-        hot_windows.extend(find_cars(img, y_start_stop=y_start_stop, scale=scale,
-                                     svc=svc, X_scaler=X_scaler, **config))
+#     for scale in scales:
+#         hot_windows.extend(find_cars(img, y_start_stop=y_start_stop, scale=scale,
+#                                      svc=svc, X_scaler=X_scaler, **config))
+    for param in parameters:
+        more_hot_windows = find_cars(img,
+                                     y_start_stop=param['y_start_stop'],
+                                     scale=param['scale'],
+                                     svc=svc, X_scaler=X_scaler, **config)
+        
+        # Add more heat to larger windows
+        if param['window_size'][0] < 200:
+            add_heat(heatmap, more_hot_windows, amount=1)
+        else:
+            add_heat(heatmap, more_hot_windows, amount=2)
+        
+        hot_windows.extend(more_hot_windows)
+
     window_img = draw_boxes(img, hot_windows, color=(0, 0, 255), thick=6)
 
     # 2. Thresholded heatmap
-    heatmap = np.zeros_like(img[:,:,0]).astype(np.float)
-    add_heat(heatmap, hot_windows)
+#     add_heat(heatmap, hot_windows)
     add_extra_heat(heatmap, hot_windows)
     frame.heatmap = heatmap
     
     # Note - frame/clip will always store the unthresholded heatmap
     threshold_heatmap = np.copy(clip.heatmap)
+
 #     threshold = min(2*len(clip.frames, 6)) # So it works for single images or videos
+    threshold_heatmap[threshold_heatmap <= 3] = 0
+    heatmap_1 = np.copy(threshold_heatmap)
     threshold_heatmap[threshold_heatmap <= 4] = 0
+    heatmap_2 = np.copy(threshold_heatmap)
+    threshold_heatmap[threshold_heatmap <= 5] = 0
+    heatmap_3 = np.copy(threshold_heatmap)
 
     # TODO - could be cool to overlay the heatmap on the image, or have something
     # which shows that the heat is about to go blue. Could do the bounding box
     # color based on the heatmap number (so higher heatmaps are emphasised)
     
+    
     # 3. Label the heatmap
     labelled_array, num_features = label(threshold_heatmap)
     
     # 4. Draw the bounded boxes
-    output = draw_labelled_bboxes(img, (labelled_array, num_features), color=(0, 0, 255), thick=6)
+    output = np.copy(img)
+#     output = draw_labelled_bboxes(img, (labelled_array, num_features), color=(0, 0, 255), thick=6)
+#     output = draw_labelled_bboxes(img, label(heatmap_1), color=(255, 0, 0), thick=6)
+#     output = draw_labelled_bboxes(output, label(heatmap_2), color=(0, 255, 0), thick=4)
+    output = draw_labelled_bboxes(output, label(heatmap_3), color=(0, 0, 255), thick=2)
     
     # -----
     if PLOT:
@@ -185,6 +277,8 @@ def pipeline(img, clip):
             (labelled_array, 'Labelled array'),
             (output, 'Result'),
         ]
+
+        visualise_windows(img, parameters)    
 
         for i, title in images:
             plt.figure()
@@ -197,13 +291,13 @@ def pipeline(img, clip):
     return output
 
 
-# In[ ]:
+# In[11]:
 
 
-get_ipython().run_cell_magic('time', '', 'PLOT = True\nSAVE = True\noutput = pipeline(test_images[1], Clip())')
+get_ipython().run_cell_magic('time', '', 'PLOT = True\nSAVE = True\noutput = pipeline(test_images[0], Clip())')
 
 
-# In[26]:
+# In[12]:
 
 
 PLOT = False
@@ -213,15 +307,7 @@ for im in test_images:
     plt.imshow(pipeline(im, Clip()))
 
 
-# In[27]:
-
-
-clip = Clip()
-def process_image(img):
-    return pipeline(img, clip)
-
-
-# In[35]:
+# In[13]:
 
 
 # Videos
@@ -232,32 +318,32 @@ test_video = VideoFileClip("test_video.mp4")
 white_start = project_video.subclip(4,7)
 poor_white = project_video.subclip(20,25)
 lost_white = project_video.subclip(28,30)
-lost_white2 = project_video.subclip(46,46)
+lost_white2 = project_video.subclip(46,50)
 
 
 video = project_video
 
 
-# In[36]:
+# In[14]:
 
 
-get_ipython().run_cell_magic('time', '', 'PLOT = False\nSAVE = False\nvideo_out = video.fl_image(process_image) #NOTE: this function expects color images!!\n%time video_out.write_videofile(output_file, audio=False)')
-
-
-# In[37]:
-
-
-HTML("""
-<video width="960" height="540" controls>
-  <source src="{0}">
-</video>
-""".format(output_file))
+get_ipython().run_cell_magic('time', '', 'PLOT = False\nSAVE = False\nclip = Clip()\ndef process_image(img):\n    return pipeline(img, clip)\n\nvideo_out = video.fl_image(process_image) #NOTE: this function expects color images!!\n%time video_out.write_videofile(output_file, audio=False)')
 
 
 # In[15]:
 
 
-PLOT = True
-SAVE = False
-output = pipeline(video.get_frame(1), Clip())
+HTML("""
+<video width="640" height="360" controls>
+  <source src="{0}">
+</video>
+""".format(output_file))
+
+
+# In[16]:
+
+
+# PLOT = True
+# SAVE = False
+# output = pipeline(video.get_frame(1), Clip())
 

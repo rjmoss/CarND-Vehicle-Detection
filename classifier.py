@@ -23,11 +23,11 @@ from utils import extract_features_many_filenames
 from sklearn.cross_validation import train_test_split
 
 
-# In[2]:
+# In[11]:
 
 
 # To save as normal python script (easier to git diff)
-get_ipython().system('jupyter nbconvert --to script classifier.ipynb')
+# !jupyter nbconvert --to script classifier.ipynb
 
 
 # In[3]:

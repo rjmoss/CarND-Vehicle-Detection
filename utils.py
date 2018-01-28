@@ -281,9 +281,9 @@ def find_cars(img, y_start_stop, scale, svc, X_scaler, orient, pix_per_cell, cel
     return windows_found
 
 
-def add_heat(heatmap, bbox_list):
+def add_heat(heatmap, bbox_list, amount=1):
     for box in bbox_list:
-        heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += 1
+        heatmap[box[0][1]:box[1][1], box[0][0]:box[1][0]] += amount
 
     return heatmap
 
