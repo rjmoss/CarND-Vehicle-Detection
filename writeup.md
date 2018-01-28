@@ -35,6 +35,9 @@ The goals / steps of this project are the following:
 [image17]: ./output_images/Labelled_array.jpg
 [image18]: ./output_images/Result.jpg
 
+[image19]: ./output_images/heatmap_frames.jpg
+[image20]: ./output_images/combined_frames.jpg
+
 [video1]: ./output_images/video_out.mp4
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/513/view) Points
@@ -71,10 +74,7 @@ Here are examples of the `vehicle` and `non-vehicle` classes with their correspo
 
 
 #### Spatial and colour features
-In addition to the HOG features, a histogram of colours was 
-
-XXX colour hist image
-XXX spatial hist
+In addition to the HOG features, a histogram of colours and binned spatial features were added to the feature array.
 
 ####  Classifier training
 The steps below for data preprocessing and classifier training can be seen in cells 5-6 in `classifier.ipynb`.
@@ -108,7 +108,7 @@ The sliding window search was originally implemented in the function `slide_wind
 #### Heatmap
 A heatmap of the positive windows is created by looping through the windows and adding an amount of "heat" (defaulted to 1) to an array of zeros (see `add_heat` on line 299-312 in `utils.py`). In addition extra heat (see `add_extra_heat` on line 305) is added to boxes which overlap other boxes (this helps remove false positives and also helps get the full vehicle when thresholding rather than just the intersection of the positive windows).
 
-The heatmap is *thresholded*, meaning that values below a certain threshold are discarded. This helps remove false positives. The threshold was chosen as XXX, this was done through experimenting with a variety of values (running against the whole video - see below).
+The heatmap is *thresholded*, meaning that values below a certain threshold are discarded. This helps remove false positives. The threshold was chosen as 4, this was done through experimenting with a variety of values (running against the whole video - see below).
 
 Next `scipy.ndimage.measurements.label()` was used to label the heatmaps, this applies a different label to each non-zero area of the thresholded heatmap.
 
@@ -139,32 +139,27 @@ Here are some examples of the performace of the pipeline on the test images:
 #### Final video
 Here's a [link to my video result](./output_images/video_out.mp4)
 
+#### Heatmap
+The heatmap for each individual frame is calculated as for images above, however there is one extra step before applying the threshold to the heatmap: the pre-threshold heatmap is made as the average heatmap over the previous 8 frames, this helps to reduce false positives as we assume an actual car doesn't move much between frames. Therefore if there is a window in just one of the last 8 frames it is likely to be a one off false positive, and the averaging before thresholding will remove it from the final heatmap.
 
-#### 2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
+Note that an average is used rather than a sum so that the same threshold can be used for images and clips, and the first few clips of a frame still work.
 
+Here is an example over just 4 frames:
 
-Demonstrate a series of images with heatmaps where the adding and averaging removes a false positive.
+![alt text][image19]
 
-### Here are six frames and their corresponding heatmaps:
+You can see from the images above that there are a couple of false positives however the true positives are much stronger on the heatmap. Averaging and then thresholding the above 4 heatmaps gives the following heatmap and bounding boxes with the false positives removed:
 
-![alt text][image5]
-
-
-### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all six frames:
-![alt text][image6]
-
-### Here the resulting bounding boxes are drawn onto the last frame in the series:
-![alt text][image7]
-
+![alt text][image20]
 
 ---
 
 ### Discussion
 
-#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+While working on this project I had particular issues identifying the white car when it was either far away or very close (in between the identification was very successful). I mostly fixed these issues by choosing appropriate window sizes and 
 
-White car
-Threshold selection
-SVM accuracy (negative mining?)...
-Weighted average over previous frames for heatmap?
+Another issue was the slow pipeline time, which made it hard to test. One thing which helped was implementing the variable y start-stop based on window size, so I didn't waste time searching the wrong bit of the image. This gave a speed increase of about 50%. A future improvement could be to use opencv hog as this is quicker.
 
+The threshold selection was a challenge, but I was able to test multiple different thresholds at a time by colouring the bounding boxes differently according to the threshold value they were based on. This sped up development time considerably.
+
+I was pleased with the SVM accuracy of >99% however more training data, or paramter tweaking, could lead to an even higher accuracy which could decrease the number of false positives.
